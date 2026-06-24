@@ -34,4 +34,8 @@ CFG_HWRNG_QUALITY ?= 1024
 CFG_HWRNG_PTA ?= y
 endif
 
+# I2C driver support
+CFG_DRIVERS_I2C := y
+CFG_OMAP_I2C ?= y
+
 include core/arch/arm/cpu/cortex-armv8-0.mk
