@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2026, BayLibre
  *
- * K3 AM62x I2C platform integration for OP-TEE
+ * K3 AM64x I2C platform integration for OP-TEE
  */
 
 #include <assert.h>
@@ -16,33 +16,29 @@
 #include "k3_i2c.h"
 
 /*
- * AM62x I2C base addresses
+ * AM64x I2C base addresses
  *
  * I2C0: 0x20000000
  * I2C1: 0x20010000
- * I2C2: 0x20020000
- * I2C3: 0x20030000
  */
-static const paddr_t am62x_i2c_bases[K3_I2C_MAX_INSTANCES] = {
+static const paddr_t am64x_i2c_bases[K3_I2C_MAX_INSTANCES] = {
 	0x20000000,
 	0x20010000,
-	0x20020000,
-	0x20030000,
 };
 
-#define AM62X_I2C_SIZE		0x100
+#define AM64X_I2C_SIZE		0x100
 
-/* AM62x uses 48 MHz functional clock for I2C */
-#define AM62X_I2C_FCLK_RATE	48000000
+/* AM64x uses 48 MHz functional clock for I2C */
+#define AM64X_I2C_FCLK_RATE	48000000
 
 static struct omap_i2c_dev *k3_i2c_devs[K3_I2C_MAX_INSTANCES];
 static unsigned int k3_i2c_lock = SPINLOCK_UNLOCK;
 
 /*
- * AM62x Main PADCONF base
+ * AM64x Main PADCONF base
  */
-#define AM62X_PADCONF_BASE	0x000f4000
-#define AM62X_PADCONF_SIZE	0x200
+#define AM64X_PADCONF_BASE	0x000f4000
+#define AM64X_PADCONF_SIZE	0x1000
 
 /*
  * Pad mux value for I2C function:
@@ -57,12 +53,10 @@ static unsigned int k3_i2c_lock = SPINLOCK_UNLOCK;
 
 /*
  * Per-instance pad configuration
- * From AM62x TRM (SPRUJ40) pin mux tables
+ * AM64x MAIN domain native I2C pins
  *
- * I2C0: SCL = offset 0x1e0 (mux 0), SDA = offset 0x1e4 (mux 0)
- * I2C1: SCL = offset 0x1e8 (mux 0), SDA = offset 0x1ec (mux 0)
- * I2C2: SCL = offset 0x1f0 (mux 0), SDA = offset 0x1f4 (mux 0)
- * I2C3: SCL = offset 0x1d0 (mux 2), SDA = offset 0x1d4 (mux 2)
+ * I2C0: SCL = offset 0x260 (mux 0), SDA = offset 0x264 (mux 0)
+ * I2C1: SCL = offset 0x268 (mux 0), SDA = offset 0x26c (mux 0)
  */
 struct i2c_pad_config {
 	uint16_t scl_offset;
@@ -70,11 +64,9 @@ struct i2c_pad_config {
 	uint32_t mux_mode;
 };
 
-static const struct i2c_pad_config am62x_i2c_pads[K3_I2C_MAX_INSTANCES] = {
-	[0] = { .scl_offset = 0x1e0, .sda_offset = 0x1e4, .mux_mode = 0 },
-	[1] = { .scl_offset = 0x1e8, .sda_offset = 0x1ec, .mux_mode = 0 },
-	[2] = { .scl_offset = 0x1f0, .sda_offset = 0x1f4, .mux_mode = 0 },
-	[3] = { .scl_offset = 0x1d0, .sda_offset = 0x1d4, .mux_mode = 2 },
+static const struct i2c_pad_config am64x_i2c_pads[K3_I2C_MAX_INSTANCES] = {
+	[0] = { .scl_offset = 0x260, .sda_offset = 0x264, .mux_mode = 0 },
+	[1] = { .scl_offset = 0x268, .sda_offset = 0x26c, .mux_mode = 0 },
 };
 
 static TEE_Result k3_i2c_configure_pads(uint32_t instance)
@@ -86,11 +78,11 @@ static TEE_Result k3_i2c_configure_pads(uint32_t instance)
 	if (instance >= K3_I2C_MAX_INSTANCES)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	pad = &am62x_i2c_pads[instance];
+	pad = &am64x_i2c_pads[instance];
 
 	base = (vaddr_t)core_mmu_add_mapping(MEM_AREA_IO_SEC,
-					     AM62X_PADCONF_BASE,
-					     AM62X_PADCONF_SIZE);
+					     AM64X_PADCONF_BASE,
+					     AM64X_PADCONF_SIZE);
 	if (!base) {
 		EMSG("Failed to map PADCONF registers");
 		return TEE_ERROR_GENERIC;
@@ -113,7 +105,7 @@ TEE_Result k3_i2c_init_instance(uint32_t instance, uint32_t speed_khz,
 	struct omap_i2c_platform_data pdata = {
 		.ip_rev = OMAP_I2C_IP_VERSION_2,
 		.clkrate = speed_khz ? speed_khz : 400,
-		.fclk_rate = AM62X_I2C_FCLK_RATE,
+		.fclk_rate = AM64X_I2C_FCLK_RATE,
 		.inter_msg_delay_us = inter_msg_delay_us,
 		.flags = 0,
 	};
@@ -145,10 +137,10 @@ TEE_Result k3_i2c_init_instance(uint32_t instance, uint32_t speed_khz,
 
 	DMSG("Initializing I2C%" PRIu32 " at PA 0x%lx speed=%" PRIu32 "kHz"
 	     " inter_msg_delay=%" PRIu32 "us",
-	     instance, (unsigned long)am62x_i2c_bases[instance],
+	     instance, (unsigned long)am64x_i2c_bases[instance],
 	     pdata.clkrate, inter_msg_delay_us);
 
-	res = omap_i2c_init(am62x_i2c_bases[instance], AM62X_I2C_SIZE,
+	res = omap_i2c_init(am64x_i2c_bases[instance], AM64X_I2C_SIZE,
 			    &pdata, &dev);
 	if (res) {
 		EMSG("Failed to init I2C%" PRIu32 ": 0x%x", instance, res);
